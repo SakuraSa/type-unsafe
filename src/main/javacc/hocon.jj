@@ -1,0 +1,282 @@
+/*
+ HOCON
+ */
+
+options {
+    DEBUG_PARSER=true;
+    // DEBUG_TOKEN_MANAGER=true;
+    ERROR_REPORTING = true;
+    JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(HoconParser)
+
+package com.github.sakurasa.hocon;
+
+import java.io.*;
+import java.util.*;
+import java.math.*;
+
+public class HoconParser {
+
+    /**
+     * Constructor with String.
+     * @param input string
+     */
+	public HoconParser(String input) {
+        this(new StringReader(input));
+    }
+}
+
+PARSER_END(HoconParser)
+
+// Ignore comments
+SKIP: {
+	<C_SINGLE_COMMENT: "//" (~["\n","\r","\f"])* ["\n", "\r", "\f"]>
+    | <C_MULTILINE_COMMENT: "/*" (~[])* "*/">
+    | <SH_SINGLE_COMMENT: "#" (~["\n","\r","\f"])* ["\n", "\r", "\f"]>
+    | <WHITESPACE: " " | "\t">
+}
+
+TOKEN: {
+    <INCLUDE: "include">
+    | <EOL: "\n" | "\r" | "\f">
+    | <TRUE: "true">
+    | <FALSE: "false">
+    | <NULL: "null">
+    | <REF_LEAD: "$">
+    | <COMMA: ",">
+    | <EQUAL: [":", "="]>
+    | <BRACE_OPEN: "{">
+    | <BRACE_CLOSE: "}">
+    | <BRACKET_OPEN: "[">
+    | <BRACKET_CLOSE: "]">
+    | <PLUS: "+" >
+    | <MINUS: "-" >
+}
+
+TOKEN: {
+    <#DIGITS: (["0"-"9"])+>
+    | <INTEGER: <DIGITS> >
+    | <DECIMAL: ( <DIGITS> "." (<DIGITS>)* | "." <DIGITS> ) >
+    | <#EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+    | <DOUBLE:
+        (
+            (["0"-"9"])+ "." (["0"-"9"])* <EXPONENT>
+            | "." (["0"-"9"])+ (<EXPONENT>)
+            | (["0"-"9"])+ <EXPONENT>
+        )
+    >
+    | <POSITIVE_INTEGER: <PLUS> <INTEGER> >
+    | <POSITIVE_DECIMAL: <PLUS> <DECIMAL> >
+    | <POSITIVE_DOUBLE:  <PLUS> <DOUBLE> >
+    | <NEGATIVE_INTEGER: <MINUS> <INTEGER> >
+    | <NEGATIVE_DECIMAL: <MINUS> <DECIMAL> >
+    | <NEGATIVE_DOUBLE:  <MINUS> <DOUBLE> >
+
+    | <ECHAR: "\\" ( "t"|"b"|"n"|"r"|"f"|"\\"|"\""|"'") >
+    | < #QUOTE_3D: "\"\"\"">
+    | < #QUOTE_3S: "'''">
+    | < STRING_LITERAL1:
+          // Single quoted string
+          "'" ( (~["'","\\","\n","\r"]) | <ECHAR> )* "'" >
+    | < STRING_LITERAL2:
+        // Double quoted string
+          "\"" ( (~["\"","\\","\n","\r"]) | <ECHAR> )* "\"" >
+    | < STRING_LITERAL_LONG1:
+         <QUOTE_3S>
+          ( ("'" | "''")? (~["'","\\"] | <ECHAR> ))*
+         <QUOTE_3S> >
+    | < STRING_LITERAL_LONG2:
+         <QUOTE_3D>
+          ( ("\"" | "\"\"")? (~["\"","\\"] | <ECHAR> ))*
+         <QUOTE_3D> >
+    | < STRING_NAKED:
+        (~["0"-"9", "-", "+", ".", "[", "]", "{", "}", ",",
+           ":", "=", "$", "!", "@", "#", "%", "^", "&", "\"",
+           "'", ";", "<", ">", "\\", "/", "?", "~", "`", "\n",
+           "\t", "\r", "\f", " "])
+        (~["[", "]", "{", "}", ",", ":", "=", "$", "^", "\"",
+           "'", "<", ">", "\\", "/", "~", "`", "\n", "\t", "\r",
+           "\f", " "])+>
+}
+
+Boolean parseBoolean(): {
+}{
+    <TRUE>    { return Boolean.TRUE; }
+    | <FALSE>   { return Boolean.FALSE; }
+}
+
+Void parseNull(): {
+}{
+    <NULL> { return null; }
+}
+
+Number parseNumber(): {
+    Token t;
+}{
+      t = <INTEGER> 		    { return new Long(t.image); }
+    | t = <DECIMAL>			    { return new Double(t.image); }
+    | t = <DOUBLE>			    { return new Double(t.image); }
+    | t = <POSITIVE_INTEGER>	{ return new Long(t.image); }
+    | t = <POSITIVE_DECIMAL>	{ return new Double(t.image); }
+    | t = <POSITIVE_DOUBLE>		{ return new Double(t.image); }
+    | t = <NEGATIVE_INTEGER>	{ return new Long(t.image); }
+    | t = <NEGATIVE_DECIMAL>	{ return new Double(t.image); }
+    | t = <NEGATIVE_DOUBLE>		{ return new Double(t.image); }
+}
+
+String parseString(): {
+    Token t;
+}{
+    (
+        t = <STRING_LITERAL1>
+        { return StringUtil.unescapeJsonString(t.image, 1); }
+    ) | (
+        t = <STRING_LITERAL2>
+        { return StringUtil.unescapeJsonString(t.image, 1); }
+    ) | (
+        t = <STRING_LITERAL_LONG1>
+        { return StringUtil.unescapeJsonString(t.image, 3); }
+    ) | (
+        t = <STRING_LITERAL_LONG2>
+        { return StringUtil.unescapeJsonString(t.image, 3); }
+    ) | (
+        t = <STRING_NAKED>
+        { return StringUtil.unescapeJsonString(t.image, 0); }
+    )
+}
+
+List<Object> parseList(): {
+    ArrayList<Object> list = new ArrayList<>();
+}{
+    <BRACKET_OPEN>
+    (<EOL>)*
+    parseListTail(list)
+    { return list; }
+}
+
+void parseListTail(List<Object> list): {
+    Object value;
+}{
+    <BRACKET_CLOSE>
+    | (
+        value = parseValue() { list.add(value); }
+        (
+            <BRACKET_CLOSE>
+            | (
+                parseSeparator()
+                parseListTail(list)
+            )
+        )
+    )
+}
+
+Map<String, Object> parseObject(): {
+    Map<String, Object> obj = new HashMap<>();
+}{
+    <BRACE_OPEN>
+    (<EOL>)*
+    parseObjTail(obj) { return obj; }
+}
+
+void parsePair(Map<String, Object> obj): {
+    String key;
+    Object value;
+}{
+    key = parseString()
+    (<EOL>)*
+    (
+        (
+            <EQUAL>
+            (<EOL>)*
+            value = parseValue()
+        ) | (
+            value = parseObject()
+        )
+    )
+    { obj.put(key, value); }
+}
+
+void parseObjTail(Map<String, Object> obj): {
+}{
+    <BRACE_CLOSE>
+    | (
+        parsePair(obj)
+        (
+            <BRACE_CLOSE>
+            | (
+                parseSeparator()
+                parsePair(obj)
+            )
+        )
+    )
+}
+
+void parseSeparator(): {
+}{
+    ( (<EOL>)+ ["," (<EOL>)*] )
+    | ( "," (<EOL>)* )
+}
+
+Object parseValue(): {
+    Object value;
+}{
+    (
+        value = parseNull()
+        | value = parseBoolean()
+        | value = parseNumber()
+        | value = parseString()
+        | value = parseList()
+        | value = parseObject()
+    ) { return value; }
+}
+
+Reference parseReference(): {
+    String source;
+    Object overwrite = null;
+    Token token;
+}{
+    <REF_LEAD>
+    <BRACE_OPEN>
+    token = <STRING_NAKED>
+    { source = token.image; }
+    <BRACE_CLOSE>
+    [
+        overwrite = parseObject()
+        | overwrite = parseList()
+    ]
+    { return new Reference(source, overwrite); }
+}
+
+Paragraph parseParagraph(): {
+    String key;
+    Object value;
+}{
+    key = parseString()
+    (<EOL>)*
+    (
+        (
+            <EQUAL>
+            (<EOL>)*
+            value = parseValue()
+        ) | (
+            value = parseObject()
+        )
+    )
+    { return new Paragraph(key, value); }
+}
+
+Document parseDocument(): {
+    Document doc = new Document();
+    Paragraph paragraph;
+}{
+    (
+        paragraph = parseParagraph()
+        { doc.paragraphList.add(paragraph); }
+        parseSeparator()
+    )*
+    <EOF>
+    { return doc; }
+}
