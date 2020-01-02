@@ -3,7 +3,7 @@
  */
 
 options {
-    DEBUG_PARSER=true;
+    // DEBUG_PARSER=true;
     // DEBUG_TOKEN_MANAGER=true;
     ERROR_REPORTING = true;
     JAVA_UNICODE_ESCAPE = true;
@@ -33,18 +33,22 @@ PARSER_END(HoconParser)
 
 // Ignore comments
 SKIP: {
-	<C_SINGLE_COMMENT: "//" (~["\n","\r","\f"])* ["\n", "\r", "\f"]>
+	<C_SINGLE_COMMENT: "//" (~["\n","\r","\f"])*>
     | <C_MULTILINE_COMMENT: "/*" (~[])* "*/">
-    | <SH_SINGLE_COMMENT: "#" (~["\n","\r","\f"])* ["\n", "\r", "\f"]>
+    | <SH_SINGLE_COMMENT: "#" (~["\n","\r","\f"])*>
     | <WHITESPACE: " " | "\t">
+    | <WHITESEP: ";">
+}
+
+<DEFAULT> SKIP: {
+    <EOL: "\n" | "\r" | "\f">
 }
 
 TOKEN: {
     <INCLUDE: "include">
-    | <EOL: "\n" | "\r" | "\f">
+    | <NULL: "null">
     | <TRUE: "true">
     | <FALSE: "false">
-    | <NULL: "null">
     | <REF_LEAD: "$">
     | <COMMA: ",">
     | <EQUAL: [":", "="]>
@@ -57,25 +61,7 @@ TOKEN: {
 }
 
 TOKEN: {
-    <#DIGITS: (["0"-"9"])+>
-    | <INTEGER: <DIGITS> >
-    | <DECIMAL: ( <DIGITS> "." (<DIGITS>)* | "." <DIGITS> ) >
-    | <#EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
-    | <DOUBLE:
-        (
-            (["0"-"9"])+ "." (["0"-"9"])* <EXPONENT>
-            | "." (["0"-"9"])+ (<EXPONENT>)
-            | (["0"-"9"])+ <EXPONENT>
-        )
-    >
-    | <POSITIVE_INTEGER: <PLUS> <INTEGER> >
-    | <POSITIVE_DECIMAL: <PLUS> <DECIMAL> >
-    | <POSITIVE_DOUBLE:  <PLUS> <DOUBLE> >
-    | <NEGATIVE_INTEGER: <MINUS> <INTEGER> >
-    | <NEGATIVE_DECIMAL: <MINUS> <DECIMAL> >
-    | <NEGATIVE_DOUBLE:  <MINUS> <DOUBLE> >
-
-    | <ECHAR: "\\" ( "t"|"b"|"n"|"r"|"f"|"\\"|"\""|"'") >
+    <ECHAR: "\\" ( "t"|"b"|"n"|"r"|"f"|"\\"|"\""|"'") >
     | < #QUOTE_3D: "\"\"\"">
     | < #QUOTE_3S: "'''">
     | < STRING_LITERAL1:
@@ -93,38 +79,16 @@ TOKEN: {
           ( ("\"" | "\"\"")? (~["\"","\\"] | <ECHAR> ))*
          <QUOTE_3D> >
     | < STRING_NAKED:
-        (~["0"-"9", "-", "+", ".", "[", "]", "{", "}", ",",
-           ":", "=", "$", "!", "@", "#", "%", "^", "&", "\"",
-           "'", ";", "<", ">", "\\", "/", "?", "~", "`", "\n",
-           "\t", "\r", "\f", " "])
         (~["[", "]", "{", "}", ",", ":", "=", "$", "^", "\"",
-           "'", "<", ">", "\\", "/", "~", "`", "\n", "\t", "\r",
-           "\f", " "])+>
+           "'", "<", ">", "\\", "/", "`", "\n", "\t", "\r",
+           "\f", " ", "#", ";"])+>
 }
 
-Boolean parseBoolean(): {
-}{
-    <TRUE>    { return Boolean.TRUE; }
-    | <FALSE>   { return Boolean.FALSE; }
-}
-
-Void parseNull(): {
-}{
-    <NULL> { return null; }
-}
-
-Number parseNumber(): {
+String parseNakedString(): {
     Token t;
 }{
-      t = <INTEGER> 		    { return new Long(t.image); }
-    | t = <DECIMAL>			    { return new Double(t.image); }
-    | t = <DOUBLE>			    { return new Double(t.image); }
-    | t = <POSITIVE_INTEGER>	{ return new Long(t.image); }
-    | t = <POSITIVE_DECIMAL>	{ return new Double(t.image); }
-    | t = <POSITIVE_DOUBLE>		{ return new Double(t.image); }
-    | t = <NEGATIVE_INTEGER>	{ return new Long(t.image); }
-    | t = <NEGATIVE_DECIMAL>	{ return new Double(t.image); }
-    | t = <NEGATIVE_DOUBLE>		{ return new Double(t.image); }
+    t = <STRING_NAKED>
+    { return t.image; }
 }
 
 String parseString(): {
@@ -150,35 +114,46 @@ String parseString(): {
 
 List<Object> parseList(): {
     ArrayList<Object> list = new ArrayList<>();
+    Object value = null;
 }{
     <BRACKET_OPEN>
-    (<EOL>)*
-    parseListTail(list)
+    [
+         value = parseValue() { list.add(value); }
+         (
+            LOOKAHEAD(2)
+            ","
+            value = parseValue() { list.add(value); }
+         )*
+         [ "," ]
+    ]
+    "]"
     { return list; }
 }
 
-void parseListTail(List<Object> list): {
-    Object value;
-}{
-    <BRACKET_CLOSE>
-    | (
-        value = parseValue() { list.add(value); }
-        (
-            <BRACKET_CLOSE>
-            | (
-                parseSeparator()
-                parseListTail(list)
-            )
-        )
-    )
-}
 
 Map<String, Object> parseObject(): {
     Map<String, Object> obj = new HashMap<>();
+    Include include;
 }{
     <BRACE_OPEN>
-    (<EOL>)*
-    parseObjTail(obj) { return obj; }
+    [
+        LOOKAHEAD(<INCLUDE>)
+        include = parseInclude()
+        {
+            List includes = new ArrayList();
+            includes.add(include);
+            obj.put("__include__", includes);
+        }
+        | parsePair(obj)
+        (
+            LOOKAHEAD(2)
+            ","
+            parsePair(obj)
+        )*
+        [ "," ]
+    ]
+    "}"
+    { return obj; }
 }
 
 void parsePair(Map<String, Object> obj): {
@@ -186,11 +161,9 @@ void parsePair(Map<String, Object> obj): {
     Object value;
 }{
     key = parseString()
-    (<EOL>)*
     (
         (
             <EQUAL>
-            (<EOL>)*
             value = parseValue()
         ) | (
             value = parseObject()
@@ -199,26 +172,6 @@ void parsePair(Map<String, Object> obj): {
     { obj.put(key, value); }
 }
 
-void parseObjTail(Map<String, Object> obj): {
-}{
-    <BRACE_CLOSE>
-    | (
-        parsePair(obj)
-        (
-            <BRACE_CLOSE>
-            | (
-                parseSeparator()
-                parsePair(obj)
-            )
-        )
-    )
-}
-
-void parseSeparator(): {
-}{
-    ( (<EOL>)+ ["," (<EOL>)*] )
-    | ( "," (<EOL>)* )
-}
 
 Object parseValue(): {
     Object value;
@@ -226,16 +179,24 @@ Object parseValue(): {
     (
         value = parseNull()
         | value = parseBoolean()
-        | value = parseNumber()
         | value = parseString()
         | value = parseList()
         | value = parseObject()
-    ) { return value; }
+        | value = parseReference()
+    ) {
+        if ((value instanceof String) && StringUtil.isNumberHeading((String) value)) {
+            try {
+                return StringUtil.guessNumber((String) value);
+            } catch (ParseException ignored) {
+            }
+        }
+        return value;
+    }
 }
 
 Reference parseReference(): {
     String source;
-    Object overwrite = null;
+    Object overwrite = null, tmp = null;
     Token token;
 }{
     <REF_LEAD>
@@ -244,10 +205,34 @@ Reference parseReference(): {
     { source = token.image; }
     <BRACE_CLOSE>
     [
-        overwrite = parseObject()
-        | overwrite = parseList()
+        (
+            tmp = parseList() {
+                if (overwrite == null) {
+                    overwrite = tmp;
+                } else {
+                    ((List)overwrite).addAll((List) tmp);
+                }
+            }
+        )+
+        | (
+            tmp = parseObject() {
+                if (overwrite == null) {
+                    overwrite = tmp;
+                } else {
+                    ((Map)overwrite).putAll((Map) tmp);
+                }
+            }
+        )+
     ]
     { return new Reference(source, overwrite); }
+}
+
+Include parseInclude(): {
+    String source;
+}{
+    <INCLUDE>
+    source = parseString()
+    { return new Include(source); }
 }
 
 Paragraph parseParagraph(): {
@@ -255,11 +240,9 @@ Paragraph parseParagraph(): {
     Object value;
 }{
     key = parseString()
-    (<EOL>)*
     (
         (
             <EQUAL>
-            (<EOL>)*
             value = parseValue()
         ) | (
             value = parseObject()
@@ -271,12 +254,34 @@ Paragraph parseParagraph(): {
 Document parseDocument(): {
     Document doc = new Document();
     Paragraph paragraph;
+    Include include;
 }{
     (
-        paragraph = parseParagraph()
-        { doc.paragraphList.add(paragraph); }
-        parseSeparator()
+        (
+            paragraph = parseParagraph() { doc.lines.add(paragraph); }
+            | include = parseInclude() { doc.lines.add(include); }
+        )
     )*
     <EOF>
     { return doc; }
+}
+
+Void parseNull(): {
+}{
+    <NULL>
+    { return null; }
+}
+
+Boolean parseBoolean(): {
+    Token t;
+}{
+    (t = <TRUE> { return Boolean.TRUE; })
+    | (t = <FALSE> { return Boolean.FALSE; })
+}
+
+Number parseNumber(): {
+    String s;
+}{
+    s = parseNakedString()
+    { return StringUtil.guessNumber(s); }
 }

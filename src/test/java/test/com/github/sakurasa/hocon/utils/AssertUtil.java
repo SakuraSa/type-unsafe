@@ -1,5 +1,8 @@
 package test.com.github.sakurasa.hocon.utils;
 
+import com.github.sakurasa.hocon.Document;
+import com.github.sakurasa.hocon.Include;
+import com.github.sakurasa.hocon.Reference;
 import org.junit.Assert;
 
 import java.util.*;
@@ -23,13 +26,9 @@ public class AssertUtil {
         Assert.assertNotNull(objA);
         Assert.assertNotNull(objB);
         Assert.assertEquals(objA.size(), objB.size());
-        Iterator<Map.Entry> iteratorA = objA.entrySet().iterator();
-        Iterator<Map.Entry> iteratorB = objB.entrySet().iterator();
-        while (iteratorA.hasNext() && iteratorB.hasNext()) {
-            Map.Entry a = iteratorA.next();
-            Map.Entry b = iteratorB.next();
-            assertValueEquals(a.getKey(), b.getKey());
-            assertValueEquals(a.getValue(), b.getValue());
+        for (Map.Entry a : (Iterable<Map.Entry>) objA.entrySet()) {
+            Assert.assertTrue(objB.containsKey(a.getKey()));
+            assertValueEquals(a.getValue(), objB.get(a.getKey()));
         }
     }
 
@@ -46,6 +45,12 @@ public class AssertUtil {
             assertListEquals((Collection) a, (Collection) b);
         } else if (a instanceof Map && b instanceof Map) {
             assertObjectEquals((Map) a, (Map) b);
+        } else if (a instanceof String && b instanceof Reference) {
+            Assert.assertEquals(a, b.toString());
+        } else if (a instanceof String && b instanceof Include) {
+            Assert.assertEquals(a, b.toString());
+        } else if (a instanceof Map && b instanceof Document) {
+            assertObjectEquals((Map) a, ((Document) b).unwrap());
         } else {
             Assert.assertEquals(a, b);
         }

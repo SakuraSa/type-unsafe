@@ -142,11 +142,27 @@ public class SimpleCases {
         );
         assertValueEquals(
                 makeObject("pi", 3.14, "str", "hello"),
-                new HoconParser("{\n  pi: 3.14,\n  str: hello\n}").parseObject()
+                new HoconParser("{\n  pi: 3.14,\n  str: hello\n,}").parseObject()
         );
         assertValueEquals(
                 makeObject("key0", makeObject("key1", makeObject("key2", "value"))),
                 new HoconParser("{key0{key1:{key2=value}}}").parseObject()
+        );
+    }
+
+    @Test
+    public void testComment() throws ParseException {
+        assertValueEquals(
+                makeObject("hello", "world", "pi", 3.14),
+                new HoconParser("{\n hello: world // this is comment! \n pi: 3.14}").parseObject()
+        );
+        assertValueEquals(
+                makeObject("hello", "world", "pi", 3.14),
+                new HoconParser("{\n hello: world # this is comment! \n pi: 3.14}").parseObject()
+        );
+        assertValueEquals(
+                makeObject("hello", "world", "pi", 3.14),
+                new HoconParser("{\n hello: world /* this\n is\n comment!\n */ \n pi: 3.14}").parseObject()
         );
     }
 }

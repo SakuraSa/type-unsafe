@@ -8,4 +8,13 @@ public class Reference {
         this.source = source;
         this.overwrite = overwrite;
     }
+
+    @Override
+    public String toString() {
+        return String.format(
+                "${%s}%s",
+                source,
+                overwrite == null ? "" : overwrite
+        );
+    }
 }

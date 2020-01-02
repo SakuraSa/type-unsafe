@@ -1,5 +1,7 @@
 package com.github.sakurasa.hocon;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -32,4 +34,38 @@ public class StringUtil {
         return buffer.substring(trim, buffer.length() - trim);
     }
 
+    public static boolean isNumberHeading(String image) {
+        final String heading = "+-0123456789.";
+        if (image == null || image.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < heading.length(); i++) {
+            if (heading.charAt(i) == image.charAt(0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static Number guessNumber(String image) throws ParseException {
+        try {
+            if (image.contains(".") || image.contains("e") || image.contains("E")) {
+                // guess decimal
+                if (image.length() > 20) {
+                    return new BigDecimal(image);
+                } else {
+                    return Double.valueOf(image);
+                }
+            } else {
+                // guess integer
+                if (image.length() > 20) {
+                    return new BigInteger(image);
+                } else {
+                    return Long.valueOf(image);
+                }
+            }
+        } catch (NumberFormatException e) {
+            throw new ParseException(e.getLocalizedMessage());
+        }
+    }
 }
