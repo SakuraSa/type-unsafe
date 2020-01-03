@@ -1,0 +1,323 @@
+/*
+    json
+ */
+
+options {
+    // DEBUG_PARSER=true;
+    // DEBUG_TOKEN_MANAGER=true;
+    ERROR_REPORTING = true;
+    JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(JsonParser)
+
+package com.github.sakurasa.hocon;
+
+import com.github.sakurasa.hocon.Token;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.io.StringReader;
+
+public class JsonParser {
+
+    /**
+     * Constructor with String.
+     * @param input string
+     */
+	public JsonParser(String input) {
+        this(new StringReader(input));
+    }
+
+    public enum JsonType {
+        Object, Array, Number, String, Boolean, Null
+    }
+
+    public static class JsonElement {
+        public Range range = new Range();
+        public Object value = null;
+        public JsonType type = null;
+
+        public Object unwrap() {
+            return value;
+        }
+    }
+
+    public static class JsonPrimitive extends JsonElement {
+        public String asString() {
+            if (value == null) {
+                return "null";
+            } else {
+                return value.toString();
+            }
+        }
+    }
+
+    public static class JsonArray extends JsonElement {
+        @Override
+        public Object unwrap() {
+            @SuppressWarnings("unchecked")
+            List<Object> array = (List<Object>) this.value;
+            List<Object> unwrapped = new ArrayList<>(array.size());
+            for (Object v : array) {
+                if (v instanceof JsonElement) {
+                    unwrapped.add(((JsonElement) v).unwrap());
+                } else {
+                    unwrapped.add(v);
+                }
+            }
+            return unwrapped;
+        }
+    }
+
+    public static class JsonObject extends JsonElement {
+        @Override
+        public Object unwrap() {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) this.value;
+            Map<String, Object> unwrapped = new HashMap<>(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                String name = entry.getKey();
+                Object v = entry.getValue();
+                if (v instanceof JsonElement) {
+                    unwrapped.put(name, ((JsonElement) v).unwrap());
+                } else {
+                    unwrapped.put(name, v);
+                }
+            }
+            return unwrapped;
+        }
+    }
+
+    public static class Range {
+        public int beginLine = 0;
+        public int endLine = 0;
+        public int beginColumn = 0;
+        public int endColumn = 0;
+    }
+
+    static void fillJsonElement(JsonElement element, Token token) {
+        Range range = element.range;
+        range.beginLine = token.beginLine;
+        range.endLine = token.endLine;
+        range.beginColumn = token.beginColumn;
+        range.endColumn = token.endColumn;
+    }
+}
+PARSER_END(JsonParser)
+
+<DEFAULT> SKIP : {
+    <EOL: "\n">
+    | <HOL: "\r">
+    | <NP: "\f">
+    | <SPACE: " ">
+    | <TAB: "\t">
+}
+
+<DEFAULT> TOKEN : {
+    <COMMA: ",">
+    | <EQUAL: ":">
+    | <BRACE_OPEN: "{">
+    | <BRACE_CLOSE: "}">
+    | <BRACKET_OPEN: "[">
+    | <BRACKET_CLOSE: "]">
+}
+
+<DEFAULT> TOKEN : {
+    <NULL: "null">
+    | <TRUE: "true">
+    | <FALSE: "false">
+}
+
+<DEFAULT> MORE : {
+    <STR_START: "\""> : IN_STR
+}
+
+<IN_STR> MORE : {
+    <STR_ESCAPE: "\\"> : IN_STR_ESCAPE
+    | <STR_CHAR: ~["\"", "\\"]>
+}
+
+<IN_STR> TOKEN : {
+    <STR_END: "\""> : DEFAULT
+}
+
+<IN_STR_ESCAPE> TOKEN : {
+    <#STR_HEX: ["0"-"9","a"-"f","A"-"F"]>
+}
+
+<IN_STR_ESCAPE> MORE : {
+    <STR_EOL: "n"> : IN_STR
+    | <STR_HOL: "r"> : IN_STR
+    | <STR_NP: "f">  : IN_STR
+    | <STR_TAB: "t"> : IN_STR
+    | <STR_BACK: "b"> : IN_STR
+    | <STR_ESC: "\\"> : IN_STR
+    | <STR_QUOTE_1: "'"> : IN_STR
+    | <STR_QUOTE_2: "\""> : IN_STR
+    | <STR_UNICODE: "u" <STR_HEX><STR_HEX><STR_HEX><STR_HEX>> : IN_STR
+}
+
+<DEFAULT> TOKEN : {
+    <#PLUS: "+">
+    | <#MINS: "-">
+    | <#DIGHT: ["0"-"9"]>
+    | <#DOT: ".">
+    | <#EXP: ["e", "E"]>
+    | <INT: (<DIGHT>)+>
+    | <PLUS_INT: <PLUS> <INT>>
+    | <MINS_INT: <MINS> <INT>>
+    | <DEC: (<DIGHT>)+ <DOT> (<DIGHT>)* (<EXP> (<PLUS> | <MINS>)? <INT>)?>
+    | <PLUS_DEC: <PLUS> (<DIGHT>)+ <DOT> (<DIGHT>)* (<EXP> (<PLUS> | <MINS>)? <INT>)?>
+    | <MINS_DEC: <MINS> (<DIGHT>)+ <DOT> (<DIGHT>)* (<EXP> (<PLUS> | <MINS>)? <INT>)?>
+}
+
+JsonElement parseAny(): {
+    JsonElement element;
+}{
+    (
+        element = parseNull()
+        | element = parseBoolean()
+        | element = parseNumber()
+        | element = parseString()
+        | element = parseArray()
+        | element = parseObject()
+    ) { return element; }
+}
+
+JsonPrimitive parseNull(): {
+    JsonPrimitive primitive;
+    Token token;
+}{
+    token = <NULL>
+    {
+        primitive = new JsonPrimitive();
+        fillJsonElement(primitive, token);
+        primitive.type = JsonType.Null;
+        primitive.value = null;
+        return primitive;
+    }
+}
+
+JsonPrimitive parseBoolean(): {
+    JsonPrimitive primitive;
+    Token token;
+    Boolean value;
+}{
+    (
+        token = <TRUE> {
+            value = Boolean.TRUE;
+        }
+        | token = <FALSE> {
+            value = Boolean.FALSE;
+        }
+    ) {
+        primitive = new JsonPrimitive();
+        fillJsonElement(primitive, token);
+        primitive.value = value;
+        primitive.type = JsonType.Boolean;
+        return primitive;
+    }
+}
+
+JsonPrimitive parseNumber(): {
+    JsonPrimitive primitive;
+    Token token;
+    Number value;
+}{
+    (
+        token = <INT> { value = Long.valueOf(token.image); }
+        | token = <PLUS_INT> { value = Long.valueOf(token.image); }
+        | token = <MINS_INT> { value = Long.valueOf(token.image); }
+        | token = <DEC> { value = Double.valueOf(token.image); }
+        | token = <PLUS_DEC> { value = Double.valueOf(token.image); }
+        | token = <MINS_DEC> { value = Double.valueOf(token.image); }
+    )
+    {
+        primitive = new JsonPrimitive();
+        fillJsonElement(primitive, token);
+        primitive.value = value;
+        primitive.type = JsonType.Number;
+        return primitive;
+    }
+}
+
+JsonPrimitive parseString(): {
+    JsonPrimitive primitive;
+    Token token;
+    String value;
+}{
+    token = <STR_END>
+    {
+        primitive = new JsonPrimitive();
+        fillJsonElement(primitive, token);
+        primitive.value = StringUtil.unescapeJsonString(token.image, 1);
+        primitive.type = JsonType.String;
+        return primitive;
+    }
+}
+
+JsonArray parseArray(): {
+    JsonArray array;
+    Token open, close;
+    Object value;
+    List<Object> list;
+}{
+    open = <BRACKET_OPEN> { list = new ArrayList<>(); }
+    [
+        value = parseAny() { list.add(value); }
+        (
+            <COMMA>
+            value = parseAny() { list.add(value); }
+        )*
+    ]
+    close = <BRACKET_CLOSE>
+    {
+        array = new JsonArray();
+        Range range = array.range;
+        range.beginLine = open.beginLine;
+        range.beginColumn = open.beginColumn;
+        range.endLine = close.endLine;
+        range.endColumn = close.endColumn;
+        array.value = list;
+        array.type = JsonType.Array;
+        return array;
+    }
+}
+
+JsonObject parseObject(): {
+    JsonObject object;
+    Token open, close;
+    JsonPrimitive name;
+    Object value;
+    Map<String, Object> map;
+}{
+    open = <BRACE_OPEN> { map = new HashMap<>(); }
+    [
+        name = parseString()
+        <EQUAL>
+        value = parseAny()
+        { map.put(name.asString(), value); }
+        (
+            <COMMA>
+            name = parseString()
+            <EQUAL>
+            value = parseAny()
+            { map.put(name.asString(), value); }
+        )*
+    ]
+    close = <BRACE_CLOSE>
+    {
+        object = new JsonObject();
+        Range range = object.range;
+        range.beginLine = open.beginLine;
+        range.beginColumn = open.beginColumn;
+        range.endLine = close.endLine;
+        range.endColumn = close.endColumn;
+        object.value = map;
+        object.type = JsonType.Object;
+        return object;
+    }
+}

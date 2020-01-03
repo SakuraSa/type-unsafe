@@ -10,49 +10,49 @@ import java.util.*;
 public class AssertUtil {
 
     @SuppressWarnings({"rawtypes"})
-    static void assertListEquals(Collection listA, Collection listB) {
-        Assert.assertNotNull(listA);
-        Assert.assertNotNull(listB);
-        Assert.assertEquals(listA.size(), listB.size());
-        Iterator iteratorA = listA.iterator();
-        Iterator iteratorB = listB.iterator();
+    static void assertListEquals(Collection expected, Collection actual) {
+        Assert.assertNotNull(expected);
+        Assert.assertNotNull(actual);
+        Assert.assertEquals(expected.size(), actual.size());
+        Iterator iteratorA = expected.iterator();
+        Iterator iteratorB = actual.iterator();
         while (iteratorA.hasNext() && iteratorB.hasNext()) {
             assertValueEquals(iteratorA.next(), iteratorB.next());
         }
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    static void assertObjectEquals(Map objA, Map objB) {
-        Assert.assertNotNull(objA);
-        Assert.assertNotNull(objB);
-        Assert.assertEquals(objA.size(), objB.size());
-        for (Map.Entry a : (Iterable<Map.Entry>) objA.entrySet()) {
-            Assert.assertTrue(objB.containsKey(a.getKey()));
-            assertValueEquals(a.getValue(), objB.get(a.getKey()));
+    static void assertObjectEquals(Map expected, Map actual) {
+        Assert.assertNotNull(expected);
+        Assert.assertNotNull(actual);
+        Assert.assertEquals(expected.size(), actual.size());
+        for (Map.Entry a : (Iterable<Map.Entry>) expected.entrySet()) {
+            Assert.assertTrue(actual.containsKey(a.getKey()));
+            assertValueEquals(a.getValue(), actual.get(a.getKey()));
         }
     }
 
     @SuppressWarnings({"rawtypes"})
-    public static void assertValueEquals(Object a, Object b) {
-        if (a == b) {
+    public static void assertValueEquals(Object expected, Object actual) {
+        if (expected == actual) {
             return;
         }
 
-        if (a instanceof Number && b instanceof Number) {
-            Assert.assertEquals(((Number) a).longValue(), ((Number) b).longValue());
-            Assert.assertEquals(((Number) a).doubleValue(), ((Number) b).doubleValue(), 1e-12);
-        } else if (a instanceof Collection && b instanceof Collection) {
-            assertListEquals((Collection) a, (Collection) b);
-        } else if (a instanceof Map && b instanceof Map) {
-            assertObjectEquals((Map) a, (Map) b);
-        } else if (a instanceof String && b instanceof Reference) {
-            Assert.assertEquals(a, b.toString());
-        } else if (a instanceof String && b instanceof Include) {
-            Assert.assertEquals(a, b.toString());
-        } else if (a instanceof Map && b instanceof Document) {
-            assertObjectEquals((Map) a, ((Document) b).unwrap());
+        if (expected instanceof Number && actual instanceof Number) {
+            Assert.assertEquals(((Number) expected).longValue(), ((Number) actual).longValue());
+            Assert.assertEquals(((Number) expected).doubleValue(), ((Number) actual).doubleValue(), 1e-12);
+        } else if (expected instanceof Collection && actual instanceof Collection) {
+            assertListEquals((Collection) expected, (Collection) actual);
+        } else if (expected instanceof Map && actual instanceof Map) {
+            assertObjectEquals((Map) expected, (Map) actual);
+        } else if (expected instanceof String && actual instanceof Reference) {
+            Assert.assertEquals(expected, actual.toString());
+        } else if (expected instanceof String && actual instanceof Include) {
+            Assert.assertEquals(expected, actual.toString());
+        } else if (expected instanceof Map && actual instanceof Document) {
+            assertObjectEquals((Map) expected, ((Document) actual).unwrap());
         } else {
-            Assert.assertEquals(a, b);
+            Assert.assertEquals(expected, actual);
         }
     }
 
