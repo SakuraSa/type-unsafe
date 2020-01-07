@@ -47,25 +47,21 @@ public class StringUtil {
         return false;
     }
 
-    public static Number guessNumber(String image) throws ParseException {
-        try {
-            if (image.contains(".") || image.contains("e") || image.contains("E")) {
-                // guess decimal
-                if (image.length() > 20) {
-                    return new BigDecimal(image);
-                } else {
-                    return Double.valueOf(image);
-                }
+    public static Number guessNumber(String image) throws NumberFormatException {
+        if (image.contains(".") || image.contains("e") || image.contains("E")) {
+            // guess decimal
+            if (image.length() > 20) {
+                return new BigDecimal(image);
             } else {
-                // guess integer
-                if (image.length() > 20) {
-                    return new BigInteger(image);
-                } else {
-                    return Long.valueOf(image);
-                }
+                return Double.valueOf(image);
             }
-        } catch (NumberFormatException e) {
-            throw new ParseException(e.getLocalizedMessage());
+        } else {
+            // guess integer
+            if (image.length() > 20) {
+                return new BigInteger(image);
+            } else {
+                return Long.valueOf(image);
+            }
         }
     }
 }

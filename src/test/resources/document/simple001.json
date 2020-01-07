@@ -4,5 +4,6 @@
         "port": 9090,
         "optional": null,
         "debug": false
-    }
+    },
+    "__include__": []
 }

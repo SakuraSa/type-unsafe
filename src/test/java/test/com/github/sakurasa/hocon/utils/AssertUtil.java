@@ -1,8 +1,6 @@
 package test.com.github.sakurasa.hocon.utils;
 
-import com.github.sakurasa.hocon.Document;
-import com.github.sakurasa.hocon.Include;
-import com.github.sakurasa.hocon.Reference;
+import com.github.sakurasa.hocon.data.ConfigElement;
 import org.junit.Assert;
 
 import java.util.*;
@@ -44,13 +42,20 @@ public class AssertUtil {
         } else if (expected instanceof Collection && actual instanceof Collection) {
             assertListEquals((Collection) expected, (Collection) actual);
         } else if (expected instanceof Map && actual instanceof Map) {
-            assertObjectEquals((Map) expected, (Map) actual);
-        } else if (expected instanceof String && actual instanceof Reference) {
-            Assert.assertEquals(expected, actual.toString());
-        } else if (expected instanceof String && actual instanceof Include) {
-            Assert.assertEquals(expected, actual.toString());
-        } else if (expected instanceof Map && actual instanceof Document) {
-            assertObjectEquals((Map) expected, ((Document) actual).unwrap());
+            Assert.assertEquals(((Map) expected).size(), ((Map) actual).size());
+            Set<Object> keys = new HashSet<>();
+            keys.addAll(((Map) expected).keySet());
+            keys.addAll(((Map) actual).keySet());
+            for (Object key : keys) {
+                assertValueEquals(((Map) expected).get(key), ((Map) actual).get(key));
+            }
+        } else if (actual instanceof ConfigElement) {
+            ConfigElement element = (ConfigElement) actual;
+            if (element.canUnwrap()) {
+                assertValueEquals(expected, element.unwrap());
+            } else {
+                assertValueEquals(expected, element.toString());
+            }
         } else {
             Assert.assertEquals(expected, actual);
         }

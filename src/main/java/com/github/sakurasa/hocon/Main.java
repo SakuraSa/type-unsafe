@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 public class Main {
     public static void main(String... args) throws Exception {
-        final Path configDir = Paths.get("d:/gerrit/broadway/config");
+        final Path configDir = Paths.get(args[0]);
         final List<Path> confFiles = Files.walk(configDir)
                 .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".conf"))
                 .collect(Collectors.toList());
@@ -29,7 +29,7 @@ public class Main {
                 StandardCharsets.UTF_8
         )) {
             System.out.println(configPath.toString());
-            System.out.println(new HoconParser(reader).parseDocument().unwrap());
+            new HoconParser(reader).parseDocument().unwrap();
         }
     }
 }

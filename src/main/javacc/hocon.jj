@@ -17,6 +17,7 @@ package com.github.sakurasa.hocon;
 import java.io.*;
 import java.util.*;
 import java.math.*;
+import com.github.sakurasa.hocon.data.*;
 
 public class HoconParser {
 
@@ -27,261 +28,434 @@ public class HoconParser {
 	public HoconParser(String input) {
         this(new StringReader(input));
     }
+
+    private static Range makeRange(Token token) {
+	    return new Range(
+	            token.beginLine, token.beginColumn,
+	            token.endLine, token.endColumn
+        );
+    }
+
+    private static Range makeRange(Token from, Token to) {
+	    return new Range(
+	            from.beginLine, from.beginColumn,
+	            to.endLine, to.endColumn
+        );
+    }
+
+    private static List<Comment> makeComments(Token token) {
+	    if (token.specialToken == null) {
+	        return Collections.emptyList();
+	    }
+
+	    Token ptr = token.specialToken;
+	    int commentCnt = 0;
+	    while (ptr.specialToken != null) {
+	        ptr = ptr.specialToken;
+	        commentCnt ++;
+	    }
+
+
+	    List<Comment> comments = new ArrayList<>(commentCnt);
+	    for (int i = 0; i < commentCnt; i++) {
+	        comments.add(new Comment(ptr.image, makeRange(ptr)));
+	        ptr = ptr.next;
+	    }
+
+	    return comments;
+    }
 }
 
 PARSER_END(HoconParser)
 
+// Comments
+<DEFAULT> MORE : {
+    <C_SINGLE_COMMENT_HEAD: "//"> : COMMENT_C_SINGLE
+    | <C_MULTILINE_COMMENT_HEAD: "/*"> : COMMENT_C_MULTI
+    | <SH_SINGLE_COMMENT_HEAD: "#"> : COMMENT_SH
+}
+
+<COMMENT_C_SINGLE> MORE : {
+    <C_SINGLE_COMMENT_BODY: ~["\n","\r","\f"]> : COMMENT_C_SINGLE
+}
+
+<COMMENT_C_SINGLE> SPECIAL_TOKEN : {
+    <C_SINGLE_COMMENT_TAIL: ["\n","\r","\f"]> : DEFAULT
+}
+
+<COMMENT_C_MULTI> MORE : {
+    <C_MULTILINE_COMMENT_BODY0: ~["*"]> : COMMENT_C_MULTI
+    | <C_MULTILINE_COMMENT_BODY1: "*" ~["/"]> : COMMENT_C_MULTI
+}
+
+<COMMENT_C_MULTI> SPECIAL_TOKEN : {
+    <C_MULTILINE_COMMENT_TAIL: "*/"> : DEFAULT
+}
+
+<COMMENT_SH> MORE : {
+    <SH_SINGLE_COMMENT_BODY: ~["\n","\r","\f"]> : COMMENT_SH
+}
+
+<COMMENT_SH> SPECIAL_TOKEN : {
+    <SH_SINGLE_COMMENT_TAIL: ["\n","\r","\f"]> : DEFAULT
+}
+
 // Ignore comments
-SKIP: {
-	<C_SINGLE_COMMENT: "//" (~["\n","\r","\f"])*>
-    | <C_MULTILINE_COMMENT: "/*" (~[])* "*/">
-    | <SH_SINGLE_COMMENT: "#" (~["\n","\r","\f"])*>
-    | <WHITESPACE: " " | "\t">
-    | <WHITESEP: ";">
-}
-
 <DEFAULT> SKIP: {
-    <EOL: "\n" | "\r" | "\f">
+    <WHITESPACE: [" ", "\t"]>
 }
 
-TOKEN: {
+<DEFAULT> TOKEN : {
     <INCLUDE: "include">
-    | <NULL: "null">
-    | <TRUE: "true">
-    | <FALSE: "false">
     | <REF_LEAD: "$">
-    | <COMMA: ",">
     | <EQUAL: [":", "="]>
+    | <EOL: ["\n", "\r", "\f"]>
     | <BRACE_OPEN: "{">
     | <BRACE_CLOSE: "}">
     | <BRACKET_OPEN: "[">
     | <BRACKET_CLOSE: "]">
-    | <PLUS: "+" >
-    | <MINUS: "-" >
+    | <NULL: "null">
+    | <TRUE: "true">
+    | <FALSE: "false">
+    | <#COMMA: [",", ";"]>
+    | <SEP:
+        ((<EOL>)+ <COMMA> (<EOL>)* )
+        | (<COMMA> (<EOL>)*)
+    >
 }
 
-TOKEN: {
-    <ECHAR: "\\" ( "t"|"b"|"n"|"r"|"f"|"\\"|"\""|"'") >
-    | < #QUOTE_3D: "\"\"\"">
-    | < #QUOTE_3S: "'''">
-    | < STRING_LITERAL1:
-          // Single quoted string
-          "'" ( (~["'","\\","\n","\r"]) | <ECHAR> )* "'" >
-    | < STRING_LITERAL2:
-        // Double quoted string
-          "\"" ( (~["\"","\\","\n","\r"]) | <ECHAR> )* "\"" >
-    | < STRING_LITERAL_LONG1:
-         <QUOTE_3S>
-          ( ("'" | "''")? (~["'","\\"] | <ECHAR> ))*
-         <QUOTE_3S> >
-    | < STRING_LITERAL_LONG2:
-         <QUOTE_3D>
-          ( ("\"" | "\"\"")? (~["\"","\\"] | <ECHAR> ))*
-         <QUOTE_3D> >
-    | < STRING_NAKED:
-        (~["[", "]", "{", "}", ",", ":", "=", "$", "^", "\"",
-           "'", "<", ">", "\\", "/", "`", "\n", "\t", "\r",
-           "\f", " ", "#", ";"])+>
-}
+<DEFAULT> TOKEN : {
+     <#ECHAR: "\\" ( "t"|"b"|"n"|"r"|"f"|"\\"|"\""|"'") >
+     | < #QUOTE_3D: "\"\"\"">
+     | < #QUOTE_3S: "'''">
+     | < STRING_LITERAL1:
+           // Single quoted string
+           "'" ( (~["'","\\","\n","\r"]) | <ECHAR> )* "'" >
+     | < STRING_LITERAL2:
+         // Double quoted string
+           "\"" ( (~["\"","\\","\n","\r"]) | <ECHAR> )* "\"" >
+     | < STRING_LITERAL_LONG1:
+          <QUOTE_3S>
+           ( ("'" | "''")? (~["'","\\"] | <ECHAR> ))*
+          <QUOTE_3S> >
+     | < STRING_LITERAL_LONG2:
+          <QUOTE_3D>
+           ( ("\"" | "\"\"")? (~["\"","\\"] | <ECHAR> ))*
+          <QUOTE_3D> >
+     | < STRING_NAKED:
+         (~["[", "]", "{", "}", ",", ":", "=", "$", "^", "\"",
+            "'", "<", ">", "\\", "/", "`", "\n", "\t", "\r",
+            "\f", " ", "#", ";"])+>
+ }
 
-String parseNakedString(): {
-    Token t;
+ConfigNull parseNull(): {
+    Token token;
 }{
-    t = <STRING_NAKED>
-    { return t.image; }
+    token = <NULL>
+    {
+        Range range = makeRange(token);
+        List<Comment> comments = makeComments(token);
+        return new ConfigNull(range, comments);
+    }
 }
 
-String parseString(): {
-    Token t;
+//noinspection UnusedProduction
+ConfigBoolean parseBoolean(): {
+    Token token;
+    boolean bool;
 }{
     (
-        t = <STRING_LITERAL1>
-        { return StringUtil.unescapeJsonString(t.image, 1); }
-    ) | (
-        t = <STRING_LITERAL2>
-        { return StringUtil.unescapeJsonString(t.image, 1); }
-    ) | (
-        t = <STRING_LITERAL_LONG1>
-        { return StringUtil.unescapeJsonString(t.image, 3); }
-    ) | (
-        t = <STRING_LITERAL_LONG2>
-        { return StringUtil.unescapeJsonString(t.image, 3); }
-    ) | (
-        t = <STRING_NAKED>
-        { return StringUtil.unescapeJsonString(t.image, 0); }
+        ( token = <TRUE> ) { bool = true; }
+        | ( token = <FALSE> ) { bool = false; }
     )
+    {
+        Range range = makeRange(token);
+        List<Comment> comments = makeComments(token);
+        return new ConfigBoolean(range, comments, bool);
+    }
 }
 
-List<Object> parseList(): {
-    ArrayList<Object> list = new ArrayList<>();
-    Object value = null;
+//noinspection UnusedProduction
+ConfigNumber parseNumber(): {
+    Token token;
 }{
-    <BRACKET_OPEN>
-    [
-         value = parseValue() { list.add(value); }
-         (
-            LOOKAHEAD(2)
-            ","
-            value = parseValue() { list.add(value); }
-         )*
-         [ "," ]
-    ]
-    "]"
-    { return list; }
+    token = <STRING_NAKED>
+    {
+        Range range = makeRange(token);
+        List<Comment> comments = makeComments(token);
+        Number num = StringUtil.guessNumber(token.image);
+        return new ConfigNumber(range, comments, num);
+    }
 }
 
-
-Map<String, Object> parseObject(): {
-    Map<String, Object> obj = new HashMap<>();
-    Include include;
+//noinspection UnusedProduction
+String parseStringKey(): {
+    Token token;
+    String image;
 }{
-    <BRACE_OPEN>
-    [
-        LOOKAHEAD(<INCLUDE>)
-        include = parseInclude()
-        {
-            List includes = new ArrayList();
-            includes.add(include);
-            obj.put("__include__", includes);
-        }
-        | parsePair(obj)
-        (
-            LOOKAHEAD(2)
-            ","
-            parsePair(obj)
-        )*
-        [ "," ]
-    ]
-    "}"
-    { return obj; }
-}
-
-void parsePair(Map<String, Object> obj): {
-    String key;
-    Object value;
-}{
-    key = parseString()
     (
         (
-            <EQUAL>
-            value = parseValue()
+            token = <STRING_LITERAL1>
+            { image = StringUtil.unescapeJsonString(token.image, 1); }
         ) | (
-            value = parseObject()
+            token = <STRING_LITERAL2>
+            { image = StringUtil.unescapeJsonString(token.image, 1); }
+        ) | (
+            token = <STRING_LITERAL_LONG1>
+            { image = StringUtil.unescapeJsonString(token.image, 3); }
+        ) | (
+            token = <STRING_LITERAL_LONG2>
+            { image = StringUtil.unescapeJsonString(token.image, 3); }
+        ) | (
+            token = <STRING_NAKED>
+            { image = StringUtil.unescapeJsonString(token.image, 0); }
         )
     )
-    { obj.put(key, value); }
+    {
+        return image;
+    }
 }
 
+//noinspection UnusedProduction
+ConfigString parseString(): {
+    Token token;
+    String image;
+}{
+    (
+        (
+            token = <STRING_LITERAL1>
+            { image = StringUtil.unescapeJsonString(token.image, 1); }
+        ) | (
+            token = <STRING_LITERAL2>
+            { image = StringUtil.unescapeJsonString(token.image, 1); }
+        ) | (
+            token = <STRING_LITERAL_LONG1>
+            { image = StringUtil.unescapeJsonString(token.image, 3); }
+        ) | (
+            token = <STRING_LITERAL_LONG2>
+            { image = StringUtil.unescapeJsonString(token.image, 3); }
+        ) | (
+            token = <STRING_NAKED>
+            { image = StringUtil.unescapeJsonString(token.image, 0); }
+        )
+    )
+    {
+        Range range = makeRange(token);
+        List<Comment> comments = makeComments(token);
+        return new ConfigString(range, comments, image);
+    }
+}
 
-Object parseValue(): {
-    Object value;
+void parseSeparator(): {
+}{
+    <SEP> | (<EOL>)+
+}
+
+//noinspection UnusedProduction
+ConfigArray parseArray(): {
+    ArrayList<ConfigElement> list = new ArrayList<>();
+    ConfigElement item;
+    Token beginToken, endToken;
+} {
+    beginToken = <BRACKET_OPEN>
+    (<EOL>)*
+    [
+        item = parseValue() { list.add(item); }
+        (
+            LOOKAHEAD(2)
+            parseSeparator()
+            item = parseValue() { list.add(item); }
+        )*
+        [parseSeparator()]
+    ]
+    endToken = <BRACKET_CLOSE>
+    {
+        Range range = makeRange(beginToken, endToken);
+        List<Comment> comments = makeComments(beginToken);
+        return new ConfigArray(range, comments, list);
+    }
+}
+
+ConfigObject parseObject(): {
+    Map<String, ConfigElement> map = new LinkedHashMap<>();
+    Token beginToken, endToken, token;
+}{
+    beginToken = <BRACE_OPEN>
+    (<EOL>)*
+    [
+        parseKeyValuePair(map)
+        (
+            LOOKAHEAD(2)
+            parseSeparator()
+            parseKeyValuePair(map)
+        )*
+        [parseSeparator()]
+    ]
+    endToken = <BRACE_CLOSE>
+    {
+        Range range = makeRange(beginToken, endToken);
+        List<Comment> comments = makeComments(beginToken);
+        return new ConfigObject(range, comments, map);
+    }
+}
+
+void parseKeyValuePair(Map<String, ConfigElement> map): {
+    String name;
+    ConfigElement item;
+}{
+    name = parseStringKey()
+    (<EOL>)*
+    (
+        (
+            <EQUAL> (<EOL>)*
+            item = parseValue()
+        ) | LOOKAHEAD(parseObjectHead())(
+            item = parseObject()
+        ) | (
+            item = parseInclude()
+        )
+    )
+    {
+        map.put(name, item);
+    }
+}
+
+ConfigReference parseReference(): {
+    String source;
+    List<ConfigElement> modifiers = new ArrayList<>(0);
+    ConfigArray array;
+    ConfigObject object;
+    Token beginToken, endToken;
+}{
+    beginToken = <REF_LEAD>
+    <BRACE_OPEN>
+    token = <STRING_NAKED>
+    { source = token.image; }
+    endToken = <BRACE_CLOSE>
+    [
+        (
+            array = parseArray() { modifiers.add(array); }
+        )+ | (
+            object = parseObject() { modifiers.add(object); }
+        )+
+    ]
+    {
+        Range range;
+        if (modifiers.isEmpty()) {
+            range = makeRange(beginToken, endToken);
+        } else {
+            ConfigElement last = modifiers.get(modifiers.size() - 1);
+            range = new Range(
+                beginToken.beginLine, beginToken.beginColumn,
+                last.range.endLine, last.range.endColumn
+            );
+        }
+        List<Comment> comments = makeComments(beginToken);
+        return new ConfigReference(range, comments, source, modifiers);
+    }
+}
+
+ConfigInclude parseInclude(): {
+    ConfigString sourceConfig;
+    String source;
+    Token beginToken, endToken;
+    Range range;
+    List<Comment> comments;
+}{
+    (
+        (
+            beginToken = <INCLUDE>
+            sourceConfig = parseString()
+            {
+                range = new Range(
+                    beginToken.beginLine, beginToken.beginColumn,
+                    sourceConfig.range.endLine, sourceConfig.range.endColumn
+                );
+            }
+        ) | (
+            beginToken = <BRACE_OPEN>
+            (<EOL>)*
+            <INCLUDE>
+            sourceConfig = parseString()
+            (<EOL>)*
+            endToken = <BRACE_CLOSE>
+            {
+                range = makeRange(beginToken, endToken);
+            }
+        )
+    )
+    {
+        comments = makeComments(beginToken);
+        source = (String) sourceConfig.unwrap();
+        return new ConfigInclude(range, comments, source);
+    }
+}
+
+void parseObjectHead(): {
+}{
+    <BRACE_OPEN>
+    (<EOL>)*
+    parseStringKey()
+}
+
+ConfigElement parseValue(): {
+    ConfigElement value;
 }{
     (
         value = parseNull()
         | value = parseBoolean()
         | value = parseString()
-        | value = parseList()
-        | value = parseObject()
+        | value = parseArray()
+        | LOOKAHEAD(parseObjectHead()) value = parseObject()
         | value = parseReference()
-    ) {
-        if ((value instanceof String) && StringUtil.isNumberHeading((String) value)) {
+        | value = parseInclude()
+    )
+    {
+        if ((value instanceof ConfigString)
+            && StringUtil.isNumberHeading((String) value.unwrap())) {
             try {
-                return StringUtil.guessNumber((String) value);
-            } catch (ParseException ignored) {
+                value = new ConfigNumber(
+                    value.range, value.comments,
+                    StringUtil.guessNumber((String) value.unwrap())
+                );
+            } catch (NumberFormatException ignored) {
             }
         }
         return value;
     }
 }
 
-Reference parseReference(): {
-    String source;
-    Object overwrite = null, tmp = null;
-    Token token;
+ConfigDocument parseDocument(): {
+    List<ConfigInclude> includes = new ArrayList<>();
+    Map<String, ConfigElement> map = new LinkedHashMap<>();
+    Token endToken;
 }{
-    <REF_LEAD>
-    <BRACE_OPEN>
-    token = <STRING_NAKED>
-    { source = token.image; }
-    <BRACE_CLOSE>
+    (<EOL>)*
     [
+        parseDocumentLine(includes, map)
         (
-            tmp = parseList() {
-                if (overwrite == null) {
-                    overwrite = tmp;
-                } else {
-                    ((List)overwrite).addAll((List) tmp);
-                }
-            }
-        )+
-        | (
-            tmp = parseObject() {
-                if (overwrite == null) {
-                    overwrite = tmp;
-                } else {
-                    ((Map)overwrite).putAll((Map) tmp);
-                }
-            }
-        )+
+            LOOKAHEAD(2)
+            parseSeparator()
+            parseDocumentLine(includes, map)
+        )*
+        [parseSeparator()]
     ]
-    { return new Reference(source, overwrite); }
+    endToken = <EOF>
+    {
+        Range range = new Range(
+            0, 0,
+            endToken.endLine, endToken.endColumn
+        );
+        List<Comment> comments = Collections.emptyList();
+        return new ConfigDocument(range, comments, includes, map);
+    }
 }
 
-Include parseInclude(): {
-    String source;
+void parseDocumentLine(List<ConfigInclude> includes, Map<String, ConfigElement> map): {
+    ConfigInclude include;
 }{
-    <INCLUDE>
-    source = parseString()
-    { return new Include(source); }
+    include = parseInclude()
+    { includes.add(include); }
+    | parseKeyValuePair(map)
 }
 
-Paragraph parseParagraph(): {
-    String key;
-    Object value;
-}{
-    key = parseString()
-    (
-        (
-            <EQUAL>
-            value = parseValue()
-        ) | (
-            value = parseObject()
-        )
-    )
-    { return new Paragraph(key, value); }
-}
-
-Document parseDocument(): {
-    Document doc = new Document();
-    Paragraph paragraph;
-    Include include;
-}{
-    (
-        (
-            paragraph = parseParagraph() { doc.lines.add(paragraph); }
-            | include = parseInclude() { doc.lines.add(include); }
-        )
-    )*
-    <EOF>
-    { return doc; }
-}
-
-Void parseNull(): {
-}{
-    <NULL>
-    { return null; }
-}
-
-Boolean parseBoolean(): {
-    Token t;
-}{
-    (t = <TRUE> { return Boolean.TRUE; })
-    | (t = <FALSE> { return Boolean.FALSE; })
-}
-
-Number parseNumber(): {
-    String s;
-}{
-    s = parseNakedString()
-    { return StringUtil.guessNumber(s); }
-}

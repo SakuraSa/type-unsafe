@@ -9,5 +9,6 @@
             "refs": "${path.to.data}",
             "path": "/path/to/data"
         }
-    }
+    },
+    "__include__": []
 }

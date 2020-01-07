@@ -57,7 +57,10 @@
                             <jdkVersion>1.7</jdkVersion>
                             <sourceDirectory>src/main/javacc</sourceDirectory>
                             <outputDirectory>${project.build.directory}/generated-sources/javacc</outputDirectory>
-                            <includes>*.jj</includes>
+                            <includes>
+                                <include>*.jj</include>
+                                <include>*.jjt</include>
+                            </includes>
                             <outputEncoding>UTF-8</outputEncoding>
                         </configuration>
                     </execution>

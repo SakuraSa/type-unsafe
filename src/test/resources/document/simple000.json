@@ -1,5 +1,6 @@
 {
     "server": {
         "name": "server-name"
-    }
+    },
+    "__include__": []
 }

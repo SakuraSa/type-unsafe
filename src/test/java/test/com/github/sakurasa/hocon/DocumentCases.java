@@ -39,8 +39,7 @@ public class DocumentCases {
         String jsonPath = String.format("/document/%s.json", name);
         HoconParser parser = parseHocon(hoconPath);
         Map<String, Object> json = parseJson(jsonPath);
-        Map<String, Object> actual = parser.parseDocument().unwrap();
-        AssertUtil.assertValueEquals(json, actual);
+        AssertUtil.assertValueEquals(json, parser.parseDocument());
     }
 
     @Test
