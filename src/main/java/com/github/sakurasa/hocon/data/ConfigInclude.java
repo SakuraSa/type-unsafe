@@ -1,6 +1,9 @@
 package com.github.sakurasa.hocon.data;
 
+import com.github.sakurasa.hocon.IteratorUtil;
+
 import java.net.URI;
+import java.util.Iterator;
 import java.util.List;
 
 public class ConfigInclude extends ConfigElement {

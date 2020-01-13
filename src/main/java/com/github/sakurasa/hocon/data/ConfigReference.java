@@ -1,5 +1,8 @@
 package com.github.sakurasa.hocon.data;
 
+import com.github.sakurasa.hocon.IteratorUtil;
+
+import java.util.Iterator;
 import java.util.List;
 
 public class ConfigReference extends ConfigElement {
@@ -26,5 +29,19 @@ public class ConfigReference extends ConfigElement {
             builder.append(modifier);
         }
         return builder.toString();
+    }
+
+    @Override
+    public Iterator<ConfigInclude> iterateIncludes() {
+        if (modifiers == null || modifiers.isEmpty()) {
+            return super.iterateIncludes();
+        }
+        return IteratorUtil.flatMap(modifiers.iterator(), config -> {
+            if (config instanceof ConfigInclude) {
+                return IteratorUtil.singleton((ConfigInclude) config);
+            } else {
+                return config.iterateIncludes();
+            }
+        });
     }
 }

@@ -1,5 +1,7 @@
 package com.github.sakurasa.hocon.data;
 
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 public abstract class ConfigElement {
@@ -17,5 +19,10 @@ public abstract class ConfigElement {
 
     public boolean canUnwrap() {
         return type.isLocalValue();
+    }
+
+    public Iterator<ConfigInclude> iterateIncludes() {
+        //noinspection unchecked
+        return Collections.EMPTY_LIST.iterator();
     }
 }

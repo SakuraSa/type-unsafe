@@ -1,5 +1,7 @@
 package com.github.sakurasa.hocon.data;
 
+import com.github.sakurasa.hocon.IteratorUtil;
+
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -38,5 +40,16 @@ public class ConfigObject extends ConfigElement {
             }
         }
         return builder.append('}').toString();
+    }
+
+    @Override
+    public Iterator<ConfigInclude> iterateIncludes() {
+        return IteratorUtil.flatMap(value.values().iterator(), config -> {
+            if (config instanceof ConfigInclude) {
+                return IteratorUtil.singleton((ConfigInclude) config);
+            } else {
+                return config.iterateIncludes();
+            }
+        });
     }
 }

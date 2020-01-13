@@ -1,9 +1,8 @@
 package com.github.sakurasa.hocon.data;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.github.sakurasa.hocon.IteratorUtil;
+
+import java.util.*;
 
 public class ConfigDocument extends ConfigElement {
 
@@ -39,5 +38,19 @@ public class ConfigDocument extends ConfigElement {
     @Override
     public String toString() {
         return String.format("{\"includes\":%s,\"value\":%s}", includes, value);
+    }
+
+    @Override
+    public Iterator<ConfigInclude> iterateIncludes() {
+        return IteratorUtil.concat(
+                includes.iterator(),
+                IteratorUtil.flatMap(value.values().iterator(), config -> {
+                    if (config instanceof ConfigInclude) {
+                        return IteratorUtil.singleton((ConfigInclude) config);
+                    } else {
+                        return config.iterateIncludes();
+                    }
+                })
+        );
     }
 }

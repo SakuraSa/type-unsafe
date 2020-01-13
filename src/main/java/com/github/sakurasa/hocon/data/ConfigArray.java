@@ -1,6 +1,9 @@
 package com.github.sakurasa.hocon.data;
 
+import com.github.sakurasa.hocon.IteratorUtil;
+
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class ConfigArray extends ConfigElement {
@@ -26,5 +29,16 @@ public class ConfigArray extends ConfigElement {
     @Override
     public String toString() {
         return String.format("%s", value);
+    }
+
+    @Override
+    public Iterator<ConfigInclude> iterateIncludes() {
+        return IteratorUtil.flatMap(value.iterator(), config -> {
+            if (config instanceof ConfigInclude) {
+                return IteratorUtil.singleton((ConfigInclude) config);
+            } else {
+                return config.iterateIncludes();
+            }
+        });
     }
 }
