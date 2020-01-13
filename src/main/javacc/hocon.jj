@@ -119,8 +119,8 @@ PARSER_END(HoconParser)
     | <FALSE: "false">
     | <#COMMA: [",", ";"]>
     | <SEP:
-        ((<EOL>)+ <COMMA> (<EOL>)* )
-        | (<COMMA> (<EOL>)*)
+        ((<EOL> | [" ", "\t"])+ <COMMA> (<EOL> | [" ", "\t"])* )
+        | (<COMMA> (<EOL> | [" ", "\t"])*)
     >
 }
 
@@ -262,7 +262,7 @@ ConfigArray parseArray(): {
     [
         item = parseValue() { list.add(item); }
         (
-            LOOKAHEAD(2)
+            LOOKAHEAD(parseSeparator() parseValue())
             parseSeparator()
             item = parseValue() { list.add(item); }
         )*
@@ -285,7 +285,7 @@ ConfigObject parseObject(): {
     [
         parseKeyValuePair(map)
         (
-            LOOKAHEAD(2)
+            LOOKAHEAD(parseSeparator() parseStringKey())
             parseSeparator()
             parseKeyValuePair(map)
         )*
@@ -316,7 +316,7 @@ void parseKeyValuePair(Map<String, ConfigElement> map): {
         )
     )
     {
-        map.put(name, item);
+        if (map != null) map.put(name, item);
     }
 }
 
@@ -395,7 +395,10 @@ void parseObjectHead(): {
 }{
     <BRACE_OPEN>
     (<EOL>)*
-    parseStringKey()
+    (
+        parseStringKey()
+        | <BRACE_CLOSE>
+    )
 }
 
 ConfigElement parseValue(): {
@@ -425,6 +428,7 @@ ConfigElement parseValue(): {
     }
 }
 
+//noinspection UnusedProduction
 ConfigDocument parseDocument(): {
     List<ConfigInclude> includes = new ArrayList<>();
     Map<String, ConfigElement> map = new LinkedHashMap<>();
@@ -434,7 +438,7 @@ ConfigDocument parseDocument(): {
     [
         parseDocumentLine(includes, map)
         (
-            LOOKAHEAD(2)
+            LOOKAHEAD(parseSeparator() parseDocumentLine(null, null))
             parseSeparator()
             parseDocumentLine(includes, map)
         )*
@@ -455,7 +459,7 @@ void parseDocumentLine(List<ConfigInclude> includes, Map<String, ConfigElement> 
     ConfigInclude include;
 }{
     include = parseInclude()
-    { includes.add(include); }
+    { if (includes != null) includes.add(include); }
     | parseKeyValuePair(map)
 }
 

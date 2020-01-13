@@ -198,4 +198,10 @@ public class SimpleCases {
                 new HoconParser("{key {\n include 'path' \n }\n}").parseObject()
         );
     }
+
+    @Test
+    public void testMultiWhiteSpaceLine() throws ParseException {
+        new HoconParser("[\na\nb,\n \n \nc\n\t\r, ]").parseArray();
+        new HoconParser("{\na:a\nb:\n \nb,\n \n \nc{\n\t\r}, }").parseObject();
+    }
 }
