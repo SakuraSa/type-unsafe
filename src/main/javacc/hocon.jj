@@ -196,6 +196,15 @@ String parseStringKey(): {
         ) | (
             token = <STRING_NAKED>
             { image = StringUtil.unescapeJsonString(token.image, 0); }
+        ) | (
+            token = <TRUE>
+            { image = token.image; }
+        ) | (
+            token = <FALSE>
+            { image = token.image; }
+        ) | (
+            token = <NULL>
+            { image = token.image; }
         )
     )
     {
