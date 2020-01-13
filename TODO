@@ -1,7 +1,1 @@
-1. c_single_comment/sh_single_comment as a value separator
 
-```hocon
-{
-    key: value  # this is comment!
-}
-···

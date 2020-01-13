@@ -159,11 +159,11 @@ public class SimpleCases {
     public void testComment() throws ParseException {
         assertValueEquals(
                 makeObject("hello", "world", "pi", 3.14),
-                new HoconParser("{\n hello: world // this is comment! \n, pi: 3.14}").parseObject().unwrap()
+                new HoconParser("{\n hello: world // this is comment! \n pi: 3.14}").parseObject().unwrap()
         );
         assertValueEquals(
                 makeObject("hello", "world", "pi", 3.14),
-                new HoconParser("{\n hello: world # this is comment! \n, pi: 3.14}").parseObject().unwrap()
+                new HoconParser("{\n hello: world # this is comment! \n pi: 3.14}").parseObject().unwrap()
         );
         assertValueEquals(
                 makeObject("hello", "world", "pi", 3.14),
@@ -203,5 +203,10 @@ public class SimpleCases {
     public void testMultiWhiteSpaceLine() throws ParseException {
         new HoconParser("[\na\nb,\n \n \nc\n\t\r, ]").parseArray();
         new HoconParser("{\na:a\nb:\n \nb,\n \n \nc{\n\t\r}, }").parseObject();
+    }
+
+    @Test
+    public void testCustomCase() throws ParseException {
+        new HoconParser("[a, // comment\n b]").parseArray();
     }
 }

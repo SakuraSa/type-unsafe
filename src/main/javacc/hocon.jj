@@ -70,17 +70,12 @@ PARSER_END(HoconParser)
 
 // Comments
 <DEFAULT> MORE : {
-    <C_SINGLE_COMMENT_HEAD: "//"> : COMMENT_C_SINGLE
-    | <C_MULTILINE_COMMENT_HEAD: "/*"> : COMMENT_C_MULTI
-    | <SH_SINGLE_COMMENT_HEAD: "#"> : COMMENT_SH
+    <C_MULTILINE_COMMENT_HEAD: "/*"> : COMMENT_C_MULTI
 }
 
-<COMMENT_C_SINGLE> MORE : {
-    <C_SINGLE_COMMENT_BODY: ~["\n","\r","\f"]> : COMMENT_C_SINGLE
-}
-
-<COMMENT_C_SINGLE> SPECIAL_TOKEN : {
-    <C_SINGLE_COMMENT_TAIL: ["\n","\r","\f"]> : DEFAULT
+<DEFAULT> SPECIAL_TOKEN : {
+    <C_SINGLE_COMMENT: "//" (~["\n", "\r", "\f"])*>
+    | <SH_SINGLE_COMMENT: "#" (~["\n", "\r", "\f"])*>
 }
 
 <COMMENT_C_MULTI> MORE : {
@@ -90,14 +85,6 @@ PARSER_END(HoconParser)
 
 <COMMENT_C_MULTI> SPECIAL_TOKEN : {
     <C_MULTILINE_COMMENT_TAIL: "*/"> : DEFAULT
-}
-
-<COMMENT_SH> MORE : {
-    <SH_SINGLE_COMMENT_BODY: ~["\n","\r","\f"]> : COMMENT_SH
-}
-
-<COMMENT_SH> SPECIAL_TOKEN : {
-    <SH_SINGLE_COMMENT_TAIL: ["\n","\r","\f"]> : DEFAULT
 }
 
 // Ignore comments
@@ -248,7 +235,7 @@ ConfigString parseString(): {
 
 void parseSeparator(): {
 }{
-    <SEP> | (<EOL>)+
+    (<SEP> [(<EOL>)+]) | (<EOL>)+
 }
 
 //noinspection UnusedProduction
@@ -431,18 +418,24 @@ ConfigElement parseValue(): {
 //noinspection UnusedProduction
 ConfigDocument parseDocument(): {
     List<ConfigInclude> includes = new ArrayList<>();
+    ConfigObject obj;
     Map<String, ConfigElement> map = new LinkedHashMap<>();
     Token endToken;
 }{
     (<EOL>)*
     [
-        parseDocumentLine(includes, map)
-        (
-            LOOKAHEAD(parseSeparator() parseDocumentLine(null, null))
-            parseSeparator()
+        LOOKAHEAD(<BRACE_OPEN>)
+        obj = parseObject() {
+            map.putAll(obj.value);
+        } | (
             parseDocumentLine(includes, map)
-        )*
-        [parseSeparator()]
+            (
+                LOOKAHEAD(parseSeparator() parseDocumentLine(null, null))
+                parseSeparator()
+                parseDocumentLine(includes, map)
+            )*
+            [parseSeparator()]
+        )
     ]
     endToken = <EOF>
     {

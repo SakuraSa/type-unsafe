@@ -61,4 +61,14 @@ public class DocumentCases {
     public void testSimpleDocument003() throws ParseException, IOException {
         testCaseFile("simple003");
     }
+
+    @Test
+    public void testSimpleDocument004() throws ParseException, IOException {
+        testCaseFile("simple004");
+    }
+
+    @Test
+    public void testSimpleDocument005() throws ParseException, IOException {
+        testCaseFile("simple005");
+    }
 }
