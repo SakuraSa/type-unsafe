@@ -1,18 +1,14 @@
 package com.github.sakurasa.hocon.data;
 
-import com.github.sakurasa.hocon.IteratorUtil;
-
-import java.net.URI;
-import java.util.Iterator;
 import java.util.List;
 
 public class ConfigInclude extends ConfigElement {
 
-    public final URI source;
+    public final String source;
 
     public ConfigInclude(Range range, List<Comment> comments, String source) {
         super(range, comments, ConfigElementType.Include);
-        this.source = URI.create(source);
+        this.source = source;
     }
 
     @Override

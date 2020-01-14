@@ -8,7 +8,6 @@ import com.github.sakurasa.hocon.loader.LocalFileLoader;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -73,8 +72,8 @@ public class Hocon {
                     ConfigInclude include = iterator.next();
                     Path parent = now.getParent();
                     Path nextPath = parent == null
-                            ? Paths.get(include.source.getPath())
-                            : parent.resolve(include.source.getPath());
+                            ? Paths.get(include.source)
+                            : parent.resolve(include.source);
                     opens.addLast(nextPath.normalize());
                     sources.addLast(now);
                 }

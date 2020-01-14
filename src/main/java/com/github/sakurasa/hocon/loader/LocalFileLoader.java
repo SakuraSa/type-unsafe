@@ -1,10 +1,6 @@
 package com.github.sakurasa.hocon.loader;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Reader;
-import java.net.URI;
-import java.nio.charset.Charset;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -27,7 +23,11 @@ public class LocalFileLoader implements Loader {
                 filePath = Paths.get(path + ".conf");
             }
         }
-        return new FileReader(base.resolve(filePath).toFile());
+        File configFile = base.resolve(filePath).toFile();
+        if (!configFile.exists()) {
+            throw new FileNotFoundException(String.format("Config file \"%s\" not found.", path));
+        }
+        return new FileReader(configFile);
     }
 
     @Override

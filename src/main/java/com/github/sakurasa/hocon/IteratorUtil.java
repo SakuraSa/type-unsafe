@@ -1,6 +1,7 @@
 package com.github.sakurasa.hocon;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 
 public class IteratorUtil {

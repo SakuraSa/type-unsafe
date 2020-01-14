@@ -21,6 +21,8 @@ import com.github.sakurasa.hocon.data.*;
 
 public class HoconParser {
 
+    private String source = "unknown";
+
     /**
      * Constructor with String.
      * @param input string
@@ -56,11 +58,12 @@ public class HoconParser {
 	    }
 
 
-	    List<Comment> comments = new ArrayList<>(commentCnt);
+	    ArrayList<Comment> comments = new ArrayList<>(commentCnt);
 	    for (int i = 0; i < commentCnt; i++) {
 	        comments.add(new Comment(ptr.image, makeRange(ptr)));
 	        ptr = ptr.next;
 	    }
+        comments.trimToSize();
 
 	    return comments;
     }
@@ -268,6 +271,7 @@ ConfigArray parseArray(): {
     {
         Range range = makeRange(beginToken, endToken);
         List<Comment> comments = makeComments(beginToken);
+        list.trimToSize();
         return new ConfigArray(range, comments, list);
     }
 }
@@ -318,7 +322,7 @@ void parseKeyValuePair(Map<String, ConfigElement> map): {
 
 ConfigReference parseReference(): {
     String source;
-    List<ConfigElement> modifiers = new ArrayList<>(0);
+    ArrayList<ConfigElement> modifiers = new ArrayList<>(0);
     ConfigArray array;
     ConfigObject object;
     Token beginToken, endToken;
@@ -347,6 +351,7 @@ ConfigReference parseReference(): {
             );
         }
         List<Comment> comments = makeComments(beginToken);
+        modifiers.trimToSize();
         return new ConfigReference(range, comments, source, modifiers);
     }
 }
@@ -426,7 +431,7 @@ ConfigElement parseValue(): {
 
 //noinspection UnusedProduction
 ConfigDocument parseDocument(): {
-    List<ConfigInclude> includes = new ArrayList<>();
+    ArrayList<ConfigInclude> includes = new ArrayList<>();
     ConfigObject obj;
     Map<String, ConfigElement> map = new LinkedHashMap<>();
     Token endToken;
@@ -453,6 +458,7 @@ ConfigDocument parseDocument(): {
             endToken.endLine, endToken.endColumn
         );
         List<Comment> comments = Collections.emptyList();
+        includes.trimToSize();
         return new ConfigDocument(range, comments, includes, map);
     }
 }
